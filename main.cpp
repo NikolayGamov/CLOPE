@@ -21,6 +21,8 @@ struct TransactionObject
 	TransactionObject(char val)
 		: m_val{ val }
 	{}
+
+	TransactionObject(const TransactionObject& other) = default;
 };
 
 
@@ -49,14 +51,12 @@ namespace std
 }
 
 
-/// Владеющий указатель на объект транзакции
-using TransObjUPtr = std::unique_ptr<TransactionObject>;
 /// Транзакция - набор объектов
-using Transaction = std::vector<TransObjUPtr>;
+using Transaction = std::vector<TransactionObject>;
 /// Множество транзакций
 using Transactions = std::vector<Transaction>;
 /// Набор данных - соответствие транзакций и их кластеров
-using DataSet = std::unordered_map<Transaction, int>;
+using DataSet = std::vector<std::pair<Transaction, int>>;
 
 
 /// Кластер
@@ -76,10 +76,7 @@ public:
 		m_allObjectsCount += tr.size();
 
 		for (auto&& obj : tr)
-		{
-			_ASSERT(obj);
-			++m_countByObjects[*obj];
-		}
+			++m_countByObjects[obj];
 
 		m_uniqueObjectsCount = m_countByObjects.size();
 	}
@@ -92,8 +89,8 @@ public:
 
 		for (auto&& obj : tr)
 		{
-			_ASSERT(obj && (m_countByObjects.find(*obj) != m_countByObjects.end()));
-			--m_countByObjects[*obj];
+			_ASSERT(m_countByObjects.find(obj) != m_countByObjects.end());
+			--m_countByObjects[obj];
 		}
 
 		m_uniqueObjectsCount = m_countByObjects.size();
@@ -157,20 +154,20 @@ public:
 
 			// удалим пустые кластеры на каждой итерации, чтобы не учитывать их при следующем проходе
 			// в конце пустые можно не чистить, так как сам набор кластеров является всмпомогательными данными и на разбиение не влияет
-			m_clasters.erase(std::remove_if(m_clasters.begin(), m_clasters.end(), [](const Claster& cl) { return cl.IsEmpty(); }));
+			m_clasters.erase(std::remove_if(m_clasters.begin(), m_clasters.end(), [](const Claster& cl) { return cl.IsEmpty(); }), m_clasters.end());
 		}
 	}
 
 private:
 	/// Добавить транзакцию в самый выгодный кластер
-	size_t AddByMaxProfit(const Transaction& newTransaction)
+	int AddByMaxProfit(const Transaction& newTransaction)
 	{
 		// новую транзакцию будем пытаться записать во все кластеры (включая пустой новый)
-		std::map<double, size_t> possibleProfits;
+		std::map<double, int> possibleProfits;
 
-		auto clastersCount = m_clasters.size();
+		int clastersCount = m_clasters.size();
 
-		for (size_t i = 0; i < clastersCount; ++i)
+		for (int i = 0; i < clastersCount; ++i)
 			possibleProfits.emplace(DeltaProfitAdd(m_clasters[i], newTransaction), i);
 
 		possibleProfits.emplace(DeltaProfitAdd(Claster(), newTransaction), clastersCount);
@@ -203,7 +200,7 @@ private:
 	double Profit(const Claster& cl)
 	{
 
-		if (cl.IsEmpty)
+		if (cl.IsEmpty())
 			return 0.0;
 
 		// стоимость кластера = S x N / ( W ^ r )
@@ -224,7 +221,7 @@ std::unique_ptr<DataSet> CreateDataSet(const Transactions& transactions)
 
 	auto ds = std::make_unique<DataSet>();
 	for (auto&& tr : transactions)
-		ds->emplace(tr, invalidClasterIndex);
+		ds->emplace_back(tr, invalidClasterIndex);
 
 	return ds;
 }
