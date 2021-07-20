@@ -2,6 +2,8 @@
 
 
 #include <iostream>
+#include <fstream>
+#include <string>
 
 #include <vector>
 #include <unordered_map>
@@ -227,23 +229,55 @@ std::unique_ptr<DataSet> CreateDataSet(const Transactions& transactions)
 }
 
 
-/// Тестовые входные данные
-Transactions c_testTransactions{/*набор транзакций*/};
-/// Тестовый коэффициент отталкивания
-double c_repulsion{ 2.0 };
+/// Прочитать транзакции из файла. Правило записи в файл: Первая строка - коэффициент отталкивания. Остальные - транзакции.
+/// Транзакция представляет собой набор произвольных символов. Одна строка = одна транзакция
+std::pair<Transactions, double> ReadTransactions(const std::wstring& dataFile)
+{
+	auto in = std::ifstream(dataFile);
+
+	std::string repulsionStr;
+	std::getline(in, repulsionStr);
+	double repulsion = std::stod(repulsionStr);
+
+	char ch;
+	Transactions data{1};
+	
+	for (in.get(ch); !in.eof(); in.get(ch))
+		ch != '\n' ? data.back().emplace_back(ch) : data.emplace_back();
+
+	return { data, repulsion };
+}
+
+
+/// Печать результатов разбиения
+void PrintResults(const DataSet& ds)
+{
+	std::cout << "Tr" << "    " << "Cl" << std::endl;
+
+	for (auto&& trans : ds)
+	{
+		std::for_each(trans.first.begin(), trans.first.end(), [](auto&& o) {std::cout << o.m_val;});
+		std::cout << "    " << trans.second << std::endl;
+	}
+}
 
 
 /// Точка входа
 void main()
 {
+	// читаем транзакции
+	auto in = ReadTransactions(L"testData.txt");
+
 	// создаем датасет
-	auto dataSet = CreateDataSet(c_testTransactions);
+	auto dataSet = CreateDataSet(in.first);
 
 	// создаем CLOPE-распределитель
-	auto clope = std::make_unique<CLOPE>(*dataSet, c_repulsion);
+	auto clope = std::make_unique<CLOPE>(*dataSet, in.second);
 
 	// Шаг 1. инициализация
 	clope->Init();
 	// Шаг 2. итерация
 	clope->ImproveClustering();
+
+	PrintResults(*dataSet);
 }
